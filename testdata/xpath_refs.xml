@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<client>
+  <version>52</version>
+  <baseCurrency>EUR</baseCurrency>
+  <securities>
+    <security>
+      <uuid>s1</uuid>
+      <name>Alpha Fund</name>
+      <currencyCode>EUR</currencyCode>
+      <isin>LU0000000001</isin>
+      <prices>
+        <price t="2024-01-01" v="10000"/>
+      </prices>
+      <events/>
+    </security>
+    <security>
+      <uuid>s2</uuid>
+      <name>Beta ETF</name>
+      <currencyCode>USD</currencyCode>
+      <isin>IE0000000002</isin>
+      <prices>
+        <price t="2024-01-01" v="25000"/>
+        <price t="2024-06-01" v="26500"/>
+      </prices>
+      <events/>
+    </security>
+    <security>
+      <uuid>s3</uuid>
+      <name>Gamma Bond</name>
+      <currencyCode>EUR</currencyCode>
+      <isin>DE0000000003</isin>
+      <prices/>
+      <events/>
+    </security>
+  </securities>
+  <accounts>
+    <account>
+      <uuid>a1</uuid>
+      <name>Main Account</name>
+      <currencyCode>EUR</currencyCode>
+      <transactions>
+        <account-transaction>
+          <uuid>at1</uuid>
+          <date>2024-01-05T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>200000</amount>
+          <type>DEPOSIT</type>
+        </account-transaction>
+        <account-transaction>
+          <uuid>at2</uuid>
+          <date>2024-01-10T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>10000</amount>
+          <type>BUY</type>
+          <security reference="../../../../../securities/security[1]"/>
+        </account-transaction>
+        <account-transaction>
+          <uuid>at3</uuid>
+          <date>2024-02-10T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>25000</amount>
+          <type>BUY</type>
+          <security reference="../../../../../securities/security[2]"/>
+        </account-transaction>
+        <account-transaction>
+          <uuid>at4</uuid>
+          <date>2024-03-10T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>0</amount>
+          <type>BUY</type>
+          <security reference="../../../../../securities/security[3]"/>
+        </account-transaction>
+      </transactions>
+    </account>
+  </accounts>
+  <portfolios>
+    <portfolio>
+      <uuid>p1</uuid>
+      <name>Growth Portfolio</name>
+      <transactions>
+        <portfolio-transaction>
+          <uuid>pt1</uuid>
+          <date>2024-01-10T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>10000</amount>
+          <shares>100000000</shares>
+          <type>BUY</type>
+          <security reference="../../../../../securities/security[1]"/>
+        </portfolio-transaction>
+        <portfolio-transaction>
+          <uuid>pt2</uuid>
+          <date>2024-02-10T00:00</date>
+          <currencyCode>USD</currencyCode>
+          <amount>25000</amount>
+          <shares>10000000</shares>
+          <type>BUY</type>
+          <security reference="../../../../../securities/security[2]"/>
+        </portfolio-transaction>
+        <portfolio-transaction>
+          <uuid>pt3</uuid>
+          <date>2024-04-15T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>10500</amount>
+          <shares>100000000</shares>
+          <type>SELL</type>
+          <security reference="../../../../../securities/security[1]"/>
+        </portfolio-transaction>
+      </transactions>
+    </portfolio>
+  </portfolios>
+</client>
