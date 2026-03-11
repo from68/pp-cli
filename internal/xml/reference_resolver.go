@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yourname/pp-cli/internal/model"
+	"github.com/from68/pp-cli/internal/model"
 )
 
 // resolveReferences performs the second pass: it resolves XPath/ID reference strings

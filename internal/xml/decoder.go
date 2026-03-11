@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/yourname/pp-cli/internal/model"
+	"github.com/from68/pp-cli/internal/model"
 )
 
 // Decode reads Portfolio Performance XML from r and returns the decoded Client.
@@ -36,10 +36,10 @@ func Decode(r io.Reader) (*model.Client, error) {
 // ---- Raw XML types ----
 
 type rawClient struct {
-	Version      int           `xml:"version"`
-	BaseCurrency string        `xml:"baseCurrency"`
-	Securities   []rawSecurity `xml:"securities>security"`
-	Accounts     []rawAccount  `xml:"accounts>account"`
+	Version      int            `xml:"version"`
+	BaseCurrency string         `xml:"baseCurrency"`
+	Securities   []rawSecurity  `xml:"securities>security"`
+	Accounts     []rawAccount   `xml:"accounts>account"`
 	Portfolios   []rawPortfolio `xml:"portfolios>portfolio"`
 }
 
@@ -107,11 +107,11 @@ func (e *rawEvents) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 }
 
 type rawAccount struct {
-	UUID         string               `xml:"uuid"`
-	Name         string               `xml:"name"`
-	Currency     string               `xml:"currencyCode"`
-	Retired      bool                 `xml:"isRetired"`
-	Transactions []rawAccountTx       `xml:"transactions>account-transaction"`
+	UUID         string         `xml:"uuid"`
+	Name         string         `xml:"name"`
+	Currency     string         `xml:"currencyCode"`
+	Retired      bool           `xml:"isRetired"`
+	Transactions []rawAccountTx `xml:"transactions>account-transaction"`
 }
 
 type rawAccountTx struct {
@@ -138,10 +138,10 @@ type rawTxUnit struct {
 }
 
 type rawPortfolio struct {
-	UUID               string            `xml:"uuid"`
-	Name               string            `xml:"name"`
+	UUID                string           `xml:"uuid"`
+	Name                string           `xml:"name"`
 	ReferenceAccountRef rawSecRef        `xml:"referenceAccount"`
-	Transactions       []rawPortfolioTx  `xml:"transactions>portfolio-transaction"`
+	Transactions        []rawPortfolioTx `xml:"transactions>portfolio-transaction"`
 }
 
 type rawPortfolioTx struct {
@@ -318,9 +318,9 @@ func parsePPDate(s string) (time.Time, error) {
 // They are handled during reference resolution by scanning the raw XML.
 
 type rawCrossEntry struct {
-	Class           string          `xml:"class,attr"`
-	PortfolioTx     *rawPortfolioTx `xml:"portfolioTransaction"`
-	AccountTx       *rawAccountTx   `xml:"accountTransaction"`
+	Class       string          `xml:"class,attr"`
+	PortfolioTx *rawPortfolioTx `xml:"portfolioTransaction"`
+	AccountTx   *rawAccountTx   `xml:"accountTransaction"`
 }
 
 // parseCrossEntries extracts cross-entries from the raw XML data.

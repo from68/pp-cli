@@ -1,3 +1,6 @@
 # Local files and folders
 .local/
 *.local.*
+
+# Build Output
+main

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	ppxml "github.com/from68/pp-cli/internal/xml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ppxml "github.com/yourname/pp-cli/internal/xml"
 )
 
 const testdataMinimal = "testdata/minimal.xml"

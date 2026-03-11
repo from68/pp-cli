@@ -7,13 +7,15 @@ Module: `github.com/from68/pp-cli`
 
 This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec/).
 
-Active changes are tracked in `openspec/changes/`.
+Active changes are tracked in `openspec/changes/`. Do not consider `openspec/changes/archive/`.
 
 Get the status via running
 
 ```bash
 openspec list
 ```
+
+**The active specification is maintained in `openspec/specs/`.**
 
 ## Build & Test
 
