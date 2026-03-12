@@ -7,6 +7,7 @@ type Account struct {
 	UUID         string
 	Name         string
 	Currency     string
+	Note         string
 	Retired      bool
 	Transactions []AccountTransaction
 }

@@ -48,34 +48,34 @@ func runAccountsList(cmd *cobra.Command, args []string) error {
 	outFmt := formatFromContext(cmd)
 	w := cmd.OutOrStdout()
 
-	headers := []string{"Name", "Currency", "Balance"}
+	headers := []string{"Name", "Currency", "Balance", "Note"}
 	var rows [][]string
 	type jsonRow struct {
 		Name     string  `json:"name"`
 		Currency string  `json:"currency"`
 		Balance  float64 `json:"balance"`
+		Note     string  `json:"note"`
 	}
 	var jsonRows []jsonRow
 
 	for _, acc := range client.Accounts {
 		bal := computeBalance(acc)
 		balStr := fmt.Sprintf("%.2f", float64(bal)/100.0)
-		rows = append(rows, []string{acc.Name, acc.Currency, balStr})
-		jsonRows = append(jsonRows, jsonRow{Name: acc.Name, Currency: acc.Currency, Balance: float64(bal) / 100.0})
+		rows = append(rows, []string{acc.Name, acc.Currency, balStr, acc.Note})
+		jsonRows = append(jsonRows, jsonRow{Name: acc.Name, Currency: acc.Currency, Balance: float64(bal) / 100.0, Note: acc.Note})
 	}
 
 	return format.Write(w, outFmt, headers, rows, jsonRows)
 }
 
-// computeBalance sums DEPOSIT/TRANSFER_IN and subtracts REMOVAL/TRANSFER_OUT
-// using integer arithmetic.
+// computeBalance sums all cash-positive and cash-negative transactions.
 func computeBalance(acc *model.Account) int64 {
 	var bal int64
 	for _, tx := range acc.Transactions {
 		switch tx.Type {
-		case "DEPOSIT", "TRANSFER_IN":
+		case "DEPOSIT", "TRANSFER_IN", "SELL", "INTEREST", "DIVIDENDS":
 			bal += tx.Amount
-		case "REMOVAL", "TRANSFER_OUT":
+		case "REMOVAL", "TRANSFER_OUT", "BUY", "INTEREST_CHARGE", "FEES":
 			bal -= tx.Amount
 		}
 	}
