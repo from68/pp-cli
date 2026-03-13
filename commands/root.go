@@ -50,6 +50,11 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+// SetVersion sets the version string on the root command.
+func SetVersion(v string) {
+	rootCmd.Version = v
+}
+
 // Execute runs the root command.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {

@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build binaries
+        run: |
+          TARGETS=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/arm64"
+            "windows/amd64"
+          )
+          for TARGET in "${TARGETS[@]}"; do
+            GOOS="${TARGET%/*}"
+            GOARCH="${TARGET#*/}"
+            OUTPUT="pp-${GOOS}-${GOARCH}"
+            if [ "$GOOS" = "windows" ]; then
+              OUTPUT="${OUTPUT}.exe"
+            fi
+            GOOS="$GOOS" GOARCH="$GOARCH" go build \
+              -ldflags "-X main.Version=${{ github.ref_name }}" \
+              -o "$OUTPUT" ./cmd/pp
+          done
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --generate-notes \
+            pp-linux-amd64 \
+            pp-linux-arm64 \
+            pp-darwin-arm64 \
+            pp-windows-amd64.exe
+        env:
+          GH_TOKEN: ${{ github.token }}
