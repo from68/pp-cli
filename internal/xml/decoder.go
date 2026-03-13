@@ -33,9 +33,15 @@ func Decode(r io.Reader) (*model.Client, error) {
 	for i := range raw.Securities {
 		client.Securities = append(client.Securities, raw.Securities[i].toModel())
 	}
-	for i := range raw.Portfolios {
-		client.Portfolios = append(client.Portfolios, raw.Portfolios[i].toModel())
+	// Portfolios may be defined inline anywhere in the document (e.g., inside an
+	// account transaction cross-entry) with only a stub reference at the top level.
+	// Scan the full document to find all inline portfolio elements.
+	for _, raw := range scanAllPortfolios(data) {
+		client.Portfolios = append(client.Portfolios, raw.toModel())
 	}
+	// Scan cross-entry portfolio transactions (camelCase <portfolioTransaction>)
+	// that live in buySellEntry / deliveryEntry / portfolioTransferEntry structures.
+	scanCrossEntryPortfolioTxs(data, client.Portfolios)
 
 	// Replace the accounts list with a full scan of the entire document.
 	// This finds accounts embedded in cross-entries that don't appear at top-level,
@@ -53,6 +59,11 @@ func Decode(r io.Reader) (*model.Client, error) {
 	if err := resolveReferences(data, client); err != nil {
 		return nil, err
 	}
+
+	// Fifth pass: attribute camelCase portfolioTransaction elements that live inside
+	// account-transaction crossEntries and carry no <portfolio> child reference.
+	// These are resolved via the account → portfolio mapping established above.
+	collectAccountCrossEntryPortfolioTxs(data, client)
 
 	return client, nil
 }
@@ -263,15 +274,16 @@ type rawPortfolio struct {
 }
 
 type rawPortfolioTx struct {
-	UUID        string      `xml:"uuid"`
-	Type        string      `xml:"type"`
-	Date        string      `xml:"date"`
-	Shares      int64       `xml:"shares"`
-	Amount      int64       `xml:"amount"`
-	Currency    string      `xml:"currencyCode"`
-	Note        string      `xml:"note"`
-	SecurityRef rawSecRef   `xml:"security"`
-	Units       []rawTxUnit `xml:"units>unit"`
+	UUID         string      `xml:"uuid"`
+	Type         string      `xml:"type"`
+	Date         string      `xml:"date"`
+	Shares       int64       `xml:"shares"`
+	Amount       int64       `xml:"amount"`
+	Currency     string      `xml:"currencyCode"`
+	Note         string      `xml:"note"`
+	SecurityRef  rawSecRef   `xml:"security"`
+	PortfolioRef rawSecRef   `xml:"portfolio"`
+	Units        []rawTxUnit `xml:"units>unit"`
 }
 
 // ---- Conversion to model ----
@@ -372,10 +384,14 @@ func (r *rawAccountTx) toModel() model.AccountTransaction {
 
 func (r *rawPortfolio) toModel() *model.Portfolio {
 	p := &model.Portfolio{
-		UUID: r.UUID,
-		Name: r.Name,
+		UUID:                r.UUID,
+		Name:                r.Name,
+		ReferenceAccountRef: r.ReferenceAccountRef.Reference,
 	}
 	for _, tx := range r.Transactions {
+		if tx.UUID == "" {
+			continue // skip stubs
+		}
 		p.Transactions = append(p.Transactions, tx.toModel())
 	}
 	return p
@@ -830,6 +846,277 @@ func collectTransferTransactions(data []byte, accs []*rawAccount) {
 
 			// Remove depth entry when the element closes.
 			delete(depthToUUID, depth)
+			depth--
+		}
+	}
+}
+
+// scanAllPortfolios scans the entire document for inline (non-reference) <portfolio>
+// elements at any nesting depth. In real PP XML files the canonical portfolio definition
+// is often embedded inside an account transaction cross-entry, with only a stub
+// <portfolio reference="..."/> at the top-level <portfolios> section.
+// Returns deduplicated portfolios ordered by first appearance.
+func scanAllPortfolios(data []byte) []*rawPortfolio {
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	seen := make(map[string]bool)
+	var result []*rawPortfolio
+
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if se.Name.Local != "portfolio" {
+			continue
+		}
+		// Skip reference stubs.
+		isRef := false
+		for _, a := range se.Attr {
+			if a.Name.Local == "reference" {
+				isRef = true
+				break
+			}
+		}
+		if isRef {
+			continue
+		}
+
+		var pf rawPortfolio
+		if err := dec.DecodeElement(&pf, &se); err != nil || pf.UUID == "" {
+			continue
+		}
+		if !seen[pf.UUID] {
+			seen[pf.UUID] = true
+			cp := pf
+			result = append(result, &cp)
+		}
+	}
+	return result
+}
+
+// scanCrossEntryPortfolioTxs scans the document for camelCase <portfolioTransaction>,
+// <portfolioTransactionFrom>, and <portfolioTransactionTo> elements found inside
+// cross-entries (buySellEntry, deliveryEntry, portfolioTransferEntry, etc.).
+// Each such element has a <portfolio reference="..."/> child that identifies
+// the owning portfolio. Decoded transactions are appended (deduplicated by UUID).
+func scanCrossEntryPortfolioTxs(data []byte, portfolios []*model.Portfolio) {
+	pfMap := buildPortfolioRefMap(portfolios)
+
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		local := se.Name.Local
+		if local != "portfolioTransaction" && local != "portfolioTransactionFrom" && local != "portfolioTransactionTo" {
+			continue
+		}
+
+		// Skip reference stubs.
+		isRef := false
+		for _, a := range se.Attr {
+			if a.Name.Local == "reference" {
+				isRef = true
+				break
+			}
+		}
+		if isRef {
+			continue
+		}
+
+		var tx rawPortfolioTx
+		if err := dec.DecodeElement(&tx, &se); err != nil || tx.UUID == "" {
+			continue
+		}
+
+		ref := stripDotDot(tx.PortfolioRef.Reference)
+		if ref == "" {
+			continue
+		}
+
+		pf, ok := pfMap[ref]
+		if !ok {
+			continue
+		}
+
+		// Deduplicate by UUID before appending.
+		dup := false
+		for _, existing := range pf.Transactions {
+			if existing.UUID == tx.UUID {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			pf.Transactions = append(pf.Transactions, tx.toModel())
+		}
+	}
+}
+
+// buildPortfolioRefMap builds a lookup map from normalised XPath/UUID keys to *model.Portfolio.
+func buildPortfolioRefMap(portfolios []*model.Portfolio) map[string]*model.Portfolio {
+	m := make(map[string]*model.Portfolio)
+	for i, pf := range portfolios {
+		m[fmt.Sprintf("portfolios/portfolio[%d]", i+1)] = pf
+		if pf.UUID != "" {
+			m[pf.UUID] = pf
+		}
+	}
+	return m
+}
+
+// stripDotDot removes all leading "../" segments from a reference path.
+func stripDotDot(ref string) string {
+	path := ref
+	for strings.HasPrefix(path, "../") {
+		path = path[3:]
+	}
+	return strings.TrimPrefix(path, "/")
+}
+
+// collectAccountCrossEntryPortfolioTxs finds camelCase <portfolioTransaction> elements
+// that are nested inside account-transaction crossEntries and carry no <portfolio> child
+// reference (so scanCrossEntryPortfolioTxs cannot attribute them). It uses portfolio
+// depth tracking: when a non-reference <portfolio> element is open at depth D and a
+// portfolioTransaction descendant at depth > D has no PortfolioRef, we assign the
+// transaction to the innermost enclosing portfolio.
+func collectAccountCrossEntryPortfolioTxs(data []byte, client *model.Client) {
+	// Build UUID → portfolio lookup.
+	pfByUUID := make(map[string]*model.Portfolio)
+	for _, pf := range client.Portfolios {
+		if pf.UUID != "" {
+			pfByUUID[pf.UUID] = pf
+		}
+	}
+	if len(pfByUUID) == 0 {
+		return
+	}
+
+	xmap := buildXPathMap(client)
+
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	depth := 0
+	// pfAtDepth maps the depth at which a non-reference portfolio element opened
+	// to that portfolio's UUID (populated once the <uuid> child is seen).
+	pfAtDepth := make(map[int]string)
+	pendingPFDepth := -1
+
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			depth++
+			local := t.Name.Local
+
+			// Track non-reference portfolio elements so we can map depth → UUID.
+			if local == "portfolio" {
+				isRef := false
+				for _, a := range t.Attr {
+					if a.Name.Local == "reference" {
+						isRef = true
+						break
+					}
+				}
+				if !isRef {
+					pfAtDepth[depth] = ""
+					pendingPFDepth = depth
+				}
+				continue
+			}
+
+			// Capture UUID for the most recently opened portfolio element.
+			if local == "uuid" && pendingPFDepth >= 0 && depth == pendingPFDepth+1 {
+				var s string
+				if err2 := dec.DecodeElement(&s, &t); err2 == nil {
+					pfAtDepth[pendingPFDepth] = s
+				}
+				depth-- // compensate for EndElement consumed by DecodeElement
+				pendingPFDepth = -1
+				continue
+			}
+
+			// Only handle non-reference camelCase portfolio transaction elements.
+			if local != "portfolioTransaction" && local != "portfolioTransactionFrom" && local != "portfolioTransactionTo" {
+				continue
+			}
+			isRef := false
+			for _, a := range t.Attr {
+				if a.Name.Local == "reference" {
+					isRef = true
+					break
+				}
+			}
+			if isRef {
+				continue
+			}
+
+			txDepth := depth
+			var tx rawPortfolioTx
+			if err2 := dec.DecodeElement(&tx, &t); err2 != nil || tx.UUID == "" {
+				depth-- // compensate
+				continue
+			}
+			depth-- // compensate for EndElement consumed by DecodeElement
+
+			// Only handle account-centric transactions (no portfolio child reference).
+			// scanCrossEntryPortfolioTxs already handles the case where PortfolioRef is set.
+			if tx.PortfolioRef.Reference != "" {
+				continue
+			}
+
+			// Find the innermost containing portfolio (highest depth < txDepth with a UUID).
+			bestDepth := -1
+			pfUUID := ""
+			for d, uuid := range pfAtDepth {
+				if d < txDepth && d > bestDepth && uuid != "" {
+					bestDepth = d
+					pfUUID = uuid
+				}
+			}
+			if pfUUID == "" {
+				continue
+			}
+
+			pf := pfByUUID[pfUUID]
+			if pf == nil {
+				continue
+			}
+
+			modelTx := tx.toModel()
+			if modelTx.SecurityRef != "" {
+				if obj := resolveXPath(modelTx.SecurityRef, xmap); obj != nil {
+					if sec, ok := obj.(*model.Security); ok {
+						modelTx.Security = sec
+					}
+				}
+			}
+
+			// Append, deduplicating by UUID.
+			dup := false
+			for _, existing := range pf.Transactions {
+				if existing.UUID == modelTx.UUID {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				pf.Transactions = append(pf.Transactions, modelTx)
+			}
+
+		case xml.EndElement:
+			delete(pfAtDepth, depth)
 			depth--
 		}
 	}

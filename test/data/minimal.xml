@@ -11,9 +11,9 @@
       <tickerSymbol>VWRL</tickerSymbol>
       <feed>YAHOO</feed>
       <prices>
-        <price t="2024-01-02" v="9843"/>
-        <price t="2024-01-03" v="9900"/>
-        <price t="2024-01-04" v="9870"/>
+        <price t="2024-01-02" v="9843000000"/>
+        <price t="2024-01-03" v="9900000000"/>
+        <price t="2024-01-04" v="9870000000"/>
       </prices>
       <events>
         <dividendEvent>

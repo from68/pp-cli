@@ -34,11 +34,21 @@ var portfoliosTxCmd = &cobra.Command{
 	RunE:  runPortfoliosTransactions,
 }
 
+var pfHoldingsIncludeZero bool
+
+var holdingsCmd = &cobra.Command{
+	Use:   "holdings <portfolio-name>",
+	Short: "Show net share positions for a portfolio",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runPortfoliosHoldings,
+}
+
 func init() {
 	portfoliosTxCmd.Flags().StringVar(&pfTxFrom, "from", "", "Start date (ISO 8601, inclusive)")
 	portfoliosTxCmd.Flags().StringVar(&pfTxTo, "to", "", "End date (ISO 8601, inclusive)")
 	portfoliosTxCmd.Flags().StringVar(&pfTxTypes, "type", "", "Filter by type(s), comma-separated")
-	portfoliosCmd.AddCommand(portfoliosListCmd, portfoliosTxCmd)
+	holdingsCmd.Flags().BoolVar(&pfHoldingsIncludeZero, "include-zero", false, "Include positions with zero or negative net shares")
+	portfoliosCmd.AddCommand(portfoliosListCmd, portfoliosTxCmd, holdingsCmd)
 	rootCmd.AddCommand(portfoliosCmd)
 }
 
@@ -126,6 +136,76 @@ func runPortfoliosTransactions(cmd *cobra.Command, args []string) error {
 			Date: tx.Date.Format("2006-01-02"), Type: tx.Type,
 			Shares: sharesStr, Amount: float64(tx.Amount) / 100.0,
 			Currency: tx.Currency, Security: secName, Note: tx.Note,
+		})
+	}
+
+	return format.Write(w, outFmt, headers, rows, jsonRows)
+}
+
+func runPortfoliosHoldings(cmd *cobra.Command, args []string) error {
+	client := clientFromContext(cmd)
+	outFmt := formatFromContext(cmd)
+	w := cmd.OutOrStdout()
+	name := args[0]
+
+	pf := findPortfolio(client, name)
+	if pf == nil {
+		fmt.Fprintf(os.Stderr, "error: portfolio %q not found\n", name)
+		os.Exit(1)
+	}
+
+	all := model.ComputeHoldings(pf)
+
+	headers := []string{"Security", "ISIN", "Shares", "Latest Price", "Value", "Currency"}
+
+	type jsonRow struct {
+		Security    string  `json:"security"`
+		ISIN        string  `json:"isin"`
+		Shares      float64 `json:"shares"`
+		LatestPrice float64 `json:"latestPrice"`
+		Value       float64 `json:"value"`
+		Currency    string  `json:"currency"`
+	}
+
+	var rows [][]string
+	var jsonRows []jsonRow
+
+	for _, h := range all {
+		if !pfHoldingsIncludeZero && h.NetShares <= 0 {
+			continue
+		}
+
+		isin := "—"
+		if h.Security.ISIN != "" {
+			isin = h.Security.ISIN
+		}
+
+		sharesStr := fmt.Sprintf("%.8f", h.NetShares.Value())
+
+		var priceStr, valueStr string
+		if h.LatestPrice == 0 {
+			priceStr = "—"
+			valueStr = "—"
+		} else {
+			priceStr = fmt.Sprintf("%.2f", float64(h.LatestPrice)/1e8)
+			valueStr = fmt.Sprintf("%.2f", float64(h.Value)/100.0)
+		}
+
+		rows = append(rows, []string{
+			h.Security.Name,
+			isin,
+			sharesStr,
+			priceStr,
+			valueStr,
+			h.Currency,
+		})
+		jsonRows = append(jsonRows, jsonRow{
+			Security:    h.Security.Name,
+			ISIN:        h.Security.ISIN,
+			Shares:      h.NetShares.Value(),
+			LatestPrice: float64(h.LatestPrice) / 1e8,
+			Value:       float64(h.Value) / 100.0,
+			Currency:    h.Currency,
 		})
 	}
 

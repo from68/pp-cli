@@ -58,6 +58,11 @@ func buildXPathMap(client *model.Client) map[string]interface{} {
 			m[sec.UUID] = sec
 		}
 	}
+	// XStream omits the index when the collection had only one element at write time.
+	// Map bare "securities/security" to the first security so such references resolve.
+	if len(client.Securities) > 0 {
+		m["securities/security"] = client.Securities[0]
+	}
 
 	// Accounts: path "accounts/account[N]"
 	for i, acc := range client.Accounts {
@@ -144,19 +149,39 @@ func wireSecurityPointers(client *model.Client, xmap map[string]interface{}) {
 
 // resolvePortfolioAccounts wires each portfolio's ReferenceAccount pointer.
 func resolvePortfolioAccounts(client *model.Client) {
-	// Build account name and UUID map.
-	accByUUID := make(map[string]*model.Account)
-	accByIndex := make(map[string]*model.Account)
+	// Build lookup: "accounts/account[N]" and UUID → *Account.
+	accByKey := make(map[string]*model.Account)
 	for i, acc := range client.Accounts {
-		accByUUID[acc.UUID] = acc
-		accByIndex[fmt.Sprintf("accounts/account[%d]", i+1)] = acc
+		accByKey[fmt.Sprintf("accounts/account[%d]", i+1)] = acc
+		if acc.UUID != "" {
+			accByKey[acc.UUID] = acc
+		}
 	}
 
-	// For portfolio reference accounts, we look at the rawPortfolio.ReferenceAccountRef
-	// which was stored in the model. We don't have that after conversion, so we'll
-	// do a name-based match using the raw reference string stored in Portfolio.
-	// Since we lost the reference string at conversion, we rely on UUID map.
-	// (Portfolio.ReferenceAccount will be wired if we stored the ref — handled in decoder)
+	for _, pf := range client.Portfolios {
+		if pf.ReferenceAccount != nil || pf.ReferenceAccountRef == "" {
+			continue
+		}
+
+		// Strip all leading "../" segments to get a normalised path.
+		path := pf.ReferenceAccountRef
+		for strings.HasPrefix(path, "../") {
+			path = path[3:]
+		}
+		path = strings.TrimPrefix(path, "/")
+
+		if acc, ok := accByKey[path]; ok {
+			pf.ReferenceAccount = acc
+			continue
+		}
+
+		// "account" or "accounts/account" without an index → first account.
+		if path == "account" || path == "accounts/account" {
+			if len(client.Accounts) > 0 {
+				pf.ReferenceAccount = client.Accounts[0]
+			}
+		}
+	}
 }
 
 // resolveReferenceStr resolves a path relative to the absolute XML tree.

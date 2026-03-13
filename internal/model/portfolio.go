@@ -4,10 +4,11 @@ import "time"
 
 // Portfolio represents a securities portfolio (depot).
 type Portfolio struct {
-	UUID             string
-	Name             string
-	ReferenceAccount *Account
-	Transactions     []PortfolioTransaction
+	UUID                string
+	Name                string
+	ReferenceAccount    *Account
+	ReferenceAccountRef string // raw reference string, resolved to ReferenceAccount
+	Transactions        []PortfolioTransaction
 }
 
 // PortfolioTransaction represents a buy/sell or transfer within a portfolio.

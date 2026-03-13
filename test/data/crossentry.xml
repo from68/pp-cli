@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Simulates the real PP XML format where BUY/SELL transactions live in
+     <buySellEntry> cross-entries, and the portfolio's transaction list has stubs. -->
+<client>
+  <version>52</version>
+  <baseCurrency>EUR</baseCurrency>
+  <securities>
+    <security>
+      <uuid>sec-vwrl</uuid>
+      <name>Vanguard FTSE All-World</name>
+      <currencyCode>EUR</currencyCode>
+      <isin>IE00B3RBWM25</isin>
+      <prices>
+        <price t="2024-01-04" v="9870000000"/>
+      </prices>
+      <events/>
+    </security>
+  </securities>
+  <accounts>
+    <account>
+      <uuid>acc-giro</uuid>
+      <name>Giro</name>
+      <currencyCode>EUR</currencyCode>
+      <transactions>
+        <account-transaction reference="../../buySellEntries/buySellEntry[1]/accountTransaction"/>
+      </transactions>
+    </account>
+  </accounts>
+  <portfolios>
+    <portfolio>
+      <uuid>pf-depot</uuid>
+      <name>Depot</name>
+      <transactions>
+        <portfolio-transaction reference="../../buySellEntries/buySellEntry[1]/portfolioTransaction"/>
+      </transactions>
+    </portfolio>
+  </portfolios>
+  <buySellEntries>
+    <buySellEntry>
+      <account reference="../../accounts/account[1]"/>
+      <portfolio reference="../../portfolios/portfolio[1]"/>
+      <portfolioTransaction>
+        <uuid>pt-buy-1</uuid>
+        <date>2024-01-15T00:00</date>
+        <currencyCode>EUR</currencyCode>
+        <amount>98700</amount>
+        <shares>100000000</shares>
+        <type>BUY</type>
+        <security reference="../../../../securities/security[1]"/>
+        <portfolio reference="../../../../portfolios/portfolio[1]"/>
+      </portfolioTransaction>
+      <accountTransaction>
+        <uuid>at-buy-1</uuid>
+        <date>2024-01-15T00:00</date>
+        <currencyCode>EUR</currencyCode>
+        <amount>98700</amount>
+        <type>BUY</type>
+        <security reference="../../../../securities/security[1]"/>
+        <account reference="../../../../accounts/account[1]"/>
+      </accountTransaction>
+    </buySellEntry>
+  </buySellEntries>
+</client>
