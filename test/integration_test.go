@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testdataMinimal = "testdata/minimal.xml"
-const testdataXPathRefs = "testdata/xpath_refs.xml"
-const testdataCrossEntry = "testdata/crossentry.xml"
+const testdataMinimal = "data/minimal.xml"
+const testdataXPathRefs = "data/xpath_refs.xml"
+const testdataCrossEntry = "data/crossentry.xml"
 
 func loadTestFile(t *testing.T, path string) interface{ Close() error } {
 	t.Helper()

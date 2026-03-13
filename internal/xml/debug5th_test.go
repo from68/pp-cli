@@ -9,7 +9,7 @@ import (
 )
 
 func TestDebug5thPassDirect(t *testing.T) {
-	data, _ := os.ReadFile("../../testdata/Portfolio2.portfolio.local.xml")
+	data, _ := os.ReadFile("../../test/data/Portfolio2.portfolio.local.xml")
 
 	// Scan for orphan portfolioTransaction elements and check depth tracking
 	dec := xml.NewDecoder(bytes.NewReader(data))
